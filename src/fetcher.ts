@@ -69,6 +69,27 @@ export interface Config {
 	pcareUserKey: string;
 
 	/**
+	 * Username untuk autentikasi PCare
+	 *
+	 * @default process.env.JKN_PCARE_USER
+	 */
+	pcareUser?: string;
+
+	/**
+	 * Password untuk autentikasi PCare
+	 *
+	 * @default process.env.JKN_PCARE_PASSWORD
+	 */
+	pcarePassword?: string;
+
+	/**
+	 * Kode Aplikasi untuk autentikasi PCare
+	 *
+	 * @default process.env.JKN_PCARE_KODE_APLIKASI
+	 */
+	pcareKodeAplikasi?: string;
+
+	/**
 	 * User key i-Care dari BPJS
 	 *
 	 * Umumnya user key i-Care ini nilai sama dengan user key VClaim
@@ -229,6 +250,9 @@ export class Fetcher {
 		antreanUserKey: process.env.JKN_ANTREAN_USER_KEY ?? '',
 		apotekUserKey: process.env.JKN_APOTEK_USER_KEY,
 		pcareUserKey: process.env.JKN_PCARE_USER_KEY ?? '',
+		pcareUser: process.env.JKN_PCARE_USER,
+		pcarePassword: process.env.JKN_PCARE_PASSWORD,
+		pcareKodeAplikasi: process.env.JKN_PCARE_KODE_APLIKASI,
 		icareUserKey: process.env.JKN_ICARE_USER_KEY,
 		rekamMedisUserKey: process.env.JKN_REKAM_MEDIS_USER_KEY,
 		throw: false,
@@ -249,6 +273,11 @@ export class Fetcher {
 
 		if (!this.config.consId || !this.config.consSecret) {
 			throw new Error(`cons id and secret are not defined`);
+		}
+
+		// Validasi autentikasi pcare wajib jika menggunakan service pcare
+		if (this.config.pcareUserKey && (!this.config.pcareUser || !this.config.pcarePassword || !this.config.pcareKodeAplikasi)) {
+			console.warn('PCare authentication incomplete: username, password, and kode aplikasi are required for pcare service');
 		}
 
 		// fallback to vclaimUserKey
@@ -291,12 +320,26 @@ export class Fetcher {
 		const timestamp = Math.round(Date.now() / 1000);
 		const message = `${consId}&${timestamp}`;
 		const signature = createHmac('SHA256', consSecret).update(message).digest('base64');
-		return {
+		
+		const headers: Record<string, string> = {
 			'X-cons-id': consId,
 			'X-timestamp': String(timestamp),
 			'X-signature': encodeURI(signature),
 			user_key: userKey
 		};
+
+		// Tambahkan header autentikasi khusus untuk PCare
+		// PCare menggunakan X-Authorization dengan format Basic base64(username:password:app_code)
+		if (type === 'pcare') {
+			if (!this.config.pcareUser || !this.config.pcarePassword || !this.config.pcareKodeAplikasi) {
+				throw new Error('PCare authentication required: pcareUser, pcarePassword, and pcareKodeAplikasi must be provided');
+			}
+			const authData = `${this.config.pcareUser}:${this.config.pcarePassword}:${this.config.pcareKodeAplikasi}`;
+			const encodedAuth = Buffer.from(authData).toString('base64');
+			headers['X-Authorization'] = `Basic ${encodedAuth}`;
+		}
+
+		return headers;
 	}
 
 	private decrypt(responseText: string, requestTimestamp: string) {
@@ -330,6 +373,11 @@ export class Fetcher {
 			const init: RequestInit = { method: option.method ?? 'GET' };
 			const headers = { ...this.getDefaultHeaders(type), ...(option.headers ?? {}) };
 
+			// Set Content-Type untuk GET request pcare
+			if (type === 'pcare' && (option.method === 'GET' || !option.method)) {
+				headers['Content-Type'] = 'application/json; charset=utf-8';
+			}
+
 			init.headers = headers;
 			if (option.data) {
 				if (option.method === 'GET') throw new Error(`Can not pass data with "GET" method`);
@@ -337,14 +385,23 @@ export class Fetcher {
 
 				// default fetch content type in request header is json
 				if (!option.skipContentTypeHack) {
-					init.headers = {
-						...init.headers,
-						/**
-						 * The "Content-Type" is actually invalid because the body is in json format,
-						 * but it simply adheres to the JKN doc or TrustMark. What a weird API.
-						 */
-						'Content-Type': 'Application/x-www-form-urlencoded'
-					};
+					// PCare menggunakan Content-Type: text/plain untuk POST/PUT
+					if (type === 'pcare' && (option.method === 'POST' || option.method === 'PUT')) {
+						init.headers = {
+							...init.headers,
+							'Content-Type': 'text/plain',
+							'Accept': 'application/json'
+						};
+					} else {
+						init.headers = {
+							...init.headers,
+							/**
+							 * The "Content-Type" is actually invalid because the body is in json format,
+							 * but it simply adheres to the JKN doc or TrustMark. What a weird API.
+							 */
+							'Content-Type': 'Application/x-www-form-urlencoded'
+						};
+					}
 				}
 			}
 

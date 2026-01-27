@@ -34,7 +34,7 @@ export default class JKN extends Fetcher {
 	}
 
 	get pcare(): PCare {
-		return this.cache.get('pcare', PCare);
+		return PCare.getInstance(this.cache);
 	}
 
 	get antreanFktp(): AntreanFKTP {
@@ -89,5 +89,15 @@ export type ICareParams<K extends keyof ICare> = MethodParameters<ICare[K]>;
 export type AplicaresResponse<K extends keyof Aplicares> = JKNResponseType<Aplicares, K>;
 
 export type AplicaresParams<K extends keyof Aplicares> = MethodParameters<Aplicares[K]>;
+
+export type PCareResponse<
+	T extends keyof PCare, //
+	K extends keyof PCare[T]
+> = JKNResponseType<PCare[T], K>;
+
+export type PCareParams<
+	T extends keyof PCare, //
+	K extends keyof PCare[T]
+> = MethodParameters<PCare[T][K]>;
 
 export type * from './rekam-medis/types.js';

@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Konfigurasi RS - JKN API Testing UI</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>⚙️ Konfigurasi RS</h1>
+            <p>Kelola konfigurasi akses untuk berbagai Rumah Sakit</p>
+            <div style="margin-top: 15px; display: flex; gap: 10px;">
+                <a href="index.html" class="btn btn-secondary" style="text-decoration: none; display: inline-block;">← Kembali ke Testing</a>
+                <button onclick="logout()" class="btn btn-secondary" style="text-decoration: none; display: inline-block;">🚪 Logout</button>
+            </div>
+        </header>
+
+        <div style="display: grid; grid-template-columns: 300px 1fr; gap: 20px; margin-top: 20px;">
+            <!-- Config List -->
+            <section class="config-list-panel">
+                <div class="panel-header">
+                    <h2>📋 Daftar RS</h2>
+                </div>
+                <div class="panel-body">
+                    <button class="btn btn-primary" style="width: 100%; margin-bottom: 10px;" onclick="showAddConfigForm()">➕ Tambah RS Baru</button>
+                    <div style="display: flex; gap: 5px; margin-bottom: 10px;">
+                        <button class="btn btn-secondary" style="flex: 1; font-size: 0.875rem; padding: 8px;" onclick="exportConfigs()">📤 Export</button>
+                        <button class="btn btn-secondary" style="flex: 1; font-size: 0.875rem; padding: 8px;" onclick="importConfigs()">📥 Import</button>
+                    </div>
+                    <small style="display: block; color: var(--text-muted); margin-bottom: 10px; font-size: 0.75rem;">
+                        💾 Data tersimpan di browser (localStorage). Gunakan Export/Import untuk backup.
+                    </small>
+                    <div id="configList"></div>
+                </div>
+            </section>
+
+            <!-- Config Form -->
+            <section class="config-panel">
+                <div class="panel-header">
+                    <h2>⚙️ Konfigurasi Akses</h2>
+                </div>
+                <div class="panel-body">
+                    <form id="configForm">
+                        <input type="hidden" id="configId" name="configId">
+                        
+                        <div class="form-group">
+                            <label for="namaRS">Nama Rumah Sakit</label>
+                            <input type="text" id="namaRS" name="namaRS" placeholder="Contoh: RS Contoh Jakarta" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="mode">Mode Environment</label>
+                            <select id="mode" name="mode" required>
+                                <option value="development">Development</option>
+                                <option value="production">Production</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="ppkCode">Kode PPK</label>
+                            <input type="text" id="ppkCode" name="ppkCode" placeholder="Kode PPK yang diberikan BPJS" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="consId">Cons ID</label>
+                            <input type="text" id="consId" name="consId" placeholder="Cons ID dari BPJS" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="consSecret">Cons Secret</label>
+                            <input type="text" id="consSecret" name="consSecret" placeholder="Secret key dari BPJS" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="vclaimUserKey">VClaim User Key</label>
+                            <input type="text" id="vclaimUserKey" name="vclaimUserKey" placeholder="User key VClaim" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="antreanUserKey">Antrean User Key</label>
+                            <input type="text" id="antreanUserKey" name="antreanUserKey" placeholder="User key Antrean" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="pcareUserKey">PCare User Key</label>
+                            <input type="text" id="pcareUserKey" name="pcareUserKey" placeholder="User key PCare" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="pcareUser">PCare Username (Opsional)</label>
+                            <input type="text" id="pcareUser" name="pcareUser" placeholder="Username untuk autentikasi PCare">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="pcarePassword">PCare Password (Opsional)</label>
+                            <input type="password" id="pcarePassword" name="pcarePassword" placeholder="Password untuk autentikasi PCare">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="pcareKodeAplikasi">PCare Kode Aplikasi (Opsional)</label>
+                            <input type="text" id="pcareKodeAplikasi" name="pcareKodeAplikasi" placeholder="Kode Aplikasi untuk autentikasi PCare">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="aplicaresUserKey">Aplicares User Key (Opsional)</label>
+                            <input type="text" id="aplicaresUserKey" name="aplicaresUserKey" placeholder="User key Aplicares (default: VClaim User Key)">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="apotekUserKey">Apotek User Key (Opsional)</label>
+                            <input type="text" id="apotekUserKey" name="apotekUserKey" placeholder="User key Apotek (default: VClaim User Key)">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="icareUserKey">ICare User Key (Opsional)</label>
+                            <input type="text" id="icareUserKey" name="icareUserKey" placeholder="User key ICare (default: VClaim User Key)">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="rekamMedisUserKey">Rekam Medis User Key (Opsional)</label>
+                            <input type="text" id="rekamMedisUserKey" name="rekamMedisUserKey" placeholder="User key Rekam Medis (default: VClaim User Key)">
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">💾 Simpan Konfigurasi</button>
+                            <button type="button" class="btn btn-secondary" onclick="resetConfigForm()">🔄 Reset Form</button>
+                            <button type="button" class="btn btn-danger" id="deleteConfigBtn" style="display: none;" onclick="deleteConfig()">🗑️ Hapus Konfigurasi</button>
+                        </div>
+                        
+                        <div class="config-info" style="margin-top: 20px; padding: 15px; background: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 4px;">
+                            <h4 style="margin: 0 0 10px 0; color: #92400e;">⚠️ Tips Konfigurasi</h4>
+                            <ul style="margin: 0; padding-left: 20px; color: #78350f; font-size: 0.875rem;">
+                                <li>Pastikan <strong>Mode Environment</strong> sesuai (Development untuk testing, Production untuk live)</li>
+                                <li><strong>Cons ID</strong> dan <strong>Cons Secret</strong> harus valid dan sesuai dengan yang diberikan BPJS</li>
+                                <li><strong>User Key</strong> harus sesuai dengan modul yang digunakan (VClaim User Key untuk VClaim, Antrean User Key untuk Antrean, dll)</li>
+                                <li>Jika mendapat error "Authentication failed", periksa kembali semua kredensial</li>
+                                <li>Pastikan tidak ada spasi di awal/akhir saat copy-paste kredensial</li>
+                            </ul>
+                        </div>
+                    </form>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+    <script>
+        // Check authentication status
+        async function checkAuth() {
+            try {
+                const response = await fetch('/api/auth/status', {
+                    credentials: 'include'
+                });
+                const result = await response.json();
+                if (!result.success || !result.authenticated) {
+                    window.location.href = '/login.html';
+                    return false;
+                }
+                return true;
+            } catch (error) {
+                window.location.href = '/login.html';
+                return false;
+            }
+        }
+        
+        // Logout function
+        async function logout() {
+            try {
+                const response = await fetch('/api/logout', {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                const result = await response.json();
+                if (result.success) {
+                    window.location.href = '/login.html';
+                }
+            } catch (error) {
+                console.error('Logout error:', error);
+                window.location.href = '/login.html';
+            }
+        }
+        
+        // Initialize config page
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Check authentication first
+            const isAuthenticated = await checkAuth();
+            if (!isAuthenticated) {
+                return; // Will redirect to login
+            }
+            
+            loadConfigList();
+            setupEventListeners();
+        });
+    </script>
+</body>
+</html>
