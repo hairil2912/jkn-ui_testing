@@ -1,6 +1,7 @@
 import { CachedApi } from '../base.js';
 import { PCareBaseApi } from './base.js';
 import { Alergi } from './alergi.js';
+import { Diagnosa } from './diagnosa.js';
 import { Dokter } from './dokter.js';
 import { Kelompok } from './kelompok.js';
 import { Kesadaran } from './kesadaran.js';
@@ -12,7 +13,6 @@ import { Peserta } from './peserta.js';
 import { Poli } from './poli.js';
 import { Prognosa } from './prognosa.js';
 import { Provider } from './provider.js';
-import { Referensi } from './referensi.js';
 import { Rujukan } from './rujukan.js';
 import { Skrinning } from './skrinning.js';
 import { Spesialis } from './spesialis.js';
@@ -47,6 +47,10 @@ export class PCare {
 		return this.cache.get('pcare_peserta', Peserta);
 	}
 
+	get diagnosa() {
+		return this.cache.get('pcare_diagnosa', Diagnosa);
+	}
+
 	get kunjungan() {
 		return this.cache.get('pcare_kunjungan', Kunjungan);
 	}
@@ -61,10 +65,6 @@ export class PCare {
 
 	get tindakan() {
 		return this.cache.get('pcare_tindakan', Tindakan);
-	}
-
-	get referensi() {
-		return this.cache.get('pcare_referensi', Referensi);
 	}
 
 	get dokter() {

@@ -7,15 +7,21 @@ export class Referensi extends PCareBaseApi {
 	async diagnosa(params: {
 		/** kode atau nama diagnosa */
 		keyword: string;
+		/** row data awal yang akan ditampilkan (start/pagination) */
+		start: number;
+		/** limit jumlah data yang akan ditampilkan */
+		limit: number;
 	}) {
 		return this.send<{
+			count: number;
 			list: {
-				kode: string;
-				nama: string;
+				kdDiag: string;
+				nmDiag: string;
+				nonSpesialis: boolean;
 			}[];
 		}>({
 			name: this.name + 'Diagnosa',
-			path: ['/referensi/diagnosa/:keyword', params],
+			path: ['/referensi/diagnosa/:keyword/:start/:limit', params],
 			method: 'GET'
 		});
 	}

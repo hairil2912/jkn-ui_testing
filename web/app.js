@@ -190,7 +190,7 @@ const endpoints = {
             diagnosa: { 
                 name: 'Referensi - Diagnosa', 
                 params: [
-                    { key: 'keyword', label: 'Keyword Diagnosa', type: 'text', required: true }
+                    { key: 'keyword', label: 'Keyword Diagnosa', type: 'text', required: true, placeholder: 'Minimal 3 karakter (contoh: A00, Diare, Demam)', minLength: 3 }
                 ]
             },
             poli: { 
@@ -969,6 +969,16 @@ const endpoints = {
                 ]
             }
         },
+        diagnosa: {
+            index: {
+                name: 'PCare - Get Diagnosa',
+                params: [
+                    { key: 'keyword', label: 'Kode atau Nama Diagnosa', type: 'text', required: true, placeholder: 'Contoh: A00 atau Diare' },
+                    { key: 'start', label: 'Start (Row data awal)', type: 'number', required: true, min: 0, placeholder: '0' },
+                    { key: 'limit', label: 'Limit (Jumlah data)', type: 'number', required: true, min: 1, placeholder: '10' }
+                ]
+            }
+        },
         kunjungan: {
             rujukan: {
                 name: 'PCare - Get Rujukan',
@@ -1091,38 +1101,6 @@ const endpoints = {
                 params: [
                     { key: 'kdTindakanSK', label: 'Kode Tindakan SK', type: 'number', required: true, placeholder: '199' },
                     { key: 'nomorKunjungan', label: 'Nomor Kunjungan', type: 'text', required: true, placeholder: '1301U0070815Y000005' }
-                ]
-            }
-        },
-        referensi: {
-            diagnosa: {
-                name: 'PCare - Referensi Diagnosa',
-                params: [
-                    { key: 'keyword', label: 'Kode atau Nama Diagnosa', type: 'text', required: true, placeholder: 'Contoh: A00 atau Diare' }
-                ]
-            },
-            poli: {
-                name: 'PCare - Referensi Poli',
-                params: [
-                    { key: 'keyword', label: 'Kode atau Nama Poli', type: 'text', required: true, placeholder: 'Contoh: MAT atau Mata' }
-                ]
-            },
-            dokter: {
-                name: 'PCare - Referensi Dokter',
-                params: [
-                    { key: 'keyword', label: 'Kode atau Nama Dokter', type: 'text', required: true, placeholder: 'Contoh: D001 atau Dr. Ahmad' }
-                ]
-            },
-            obat: {
-                name: 'PCare - Referensi Obat',
-                params: [
-                    { key: 'keyword', label: 'Kode atau Nama Obat', type: 'text', required: true, placeholder: 'Contoh: O001 atau Paracetamol' }
-                ]
-            },
-            tindakan: {
-                name: 'PCare - Referensi Tindakan',
-                params: [
-                    { key: 'keyword', label: 'Kode atau Nama Tindakan', type: 'text', required: true, placeholder: 'Contoh: T001 atau Pemeriksaan' }
                 ]
             }
         },
@@ -2345,8 +2323,9 @@ async function testEndpoint() {
                 let value = input.value;
                 if (param.type === 'number') {
                     value = value ? Number(value) : undefined;
-                } else if (param.type === 'select' && param.key === 'jenis') {
-                    // Convert jenis to number for DPJP endpoint
+                } else if (param.type === 'select' && param.key === 'jenis' && module === 'vclaim' && endpoint === 'dpjp') {
+                    // Convert jenis to number ONLY for DPJP endpoint (vclaim.dpjp)
+                    // For alergi endpoint (pcare.alergi), jenis must remain as string "01", "02", or "03"
                     value = value ? Number(value) : undefined;
                 }
                 if (param.type === 'textarea' && value) {
