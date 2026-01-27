@@ -1776,6 +1776,9 @@ async function editConfig(id) {
         if (input) input.value = value || '';
     }
     
+    // Set configId untuk edit mode (penting untuk membedakan create vs update)
+    document.getElementById('configId').value = config.id || '';
+    
     document.getElementById('deleteConfigBtn').style.display = 'block';
 }
 
