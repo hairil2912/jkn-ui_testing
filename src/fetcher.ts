@@ -412,9 +412,26 @@ export class Fetcher {
 			if (!result) throw new Error(`The response body is empty (${response.status})`);
 
 			const json: SendResponse<R, M>[T] = JSON.parse(result);
-			if (json.response && !option.skipDecrypt) {
-				const decrypted = this.decrypt(String(json.response), headers['X-timestamp']);
-				json.response = JSON.parse(this.decompress(decrypted));
+			if (json.response != null && !option.skipDecrypt) {
+				const rawResponse = json.response;
+				// Response sudah object (plain JSON dari BPJS) — tidak perlu decrypt
+				if (typeof rawResponse === 'object') {
+					// sudah parsed, tidak ubah
+				} else {
+					try {
+						const decrypted = this.decrypt(String(rawResponse), headers['X-timestamp']);
+						json.response = JSON.parse(this.decompress(decrypted));
+					} catch (decryptError) {
+						// Beberapa endpoint PCare (mis. Get Pendaftaran Provider) mengembalikan plain JSON
+						// sehingga decrypt gagal (wrong final block length). Fallback: parse sebagai JSON.
+						const str = String(rawResponse).trim();
+						if (str.startsWith('{') || str.startsWith('[')) {
+							json.response = JSON.parse(str);
+						} else {
+							throw decryptError;
+						}
+					}
+				}
 			}
 
 			const duration = performance.now() - startedAt;

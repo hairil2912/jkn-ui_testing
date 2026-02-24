@@ -72,6 +72,13 @@ app.get('/config.html', (req, res) => {
     res.redirect('/login.html');
 });
 
+app.get('/tools-bulk-date.html', (req, res) => {
+    if (req.session && req.session.userId) {
+        return res.sendFile(path.join(__dirname, 'tools-bulk-date.html'));
+    }
+    res.redirect('/login.html');
+});
+
 // Serve static files (CSS, JS, images, etc.)
 app.use(express.static(path.join(__dirname)));
 
@@ -508,6 +515,173 @@ app.post('/api/test-bulk-params', async (req, res) => {
             success: false,
             error: errorMessage,
             duration
+        });
+    }
+});
+
+/** Format tanggal ke dd-mm-yyyy untuk API BPJS */
+function formatDateDDMMYYYY(d: Date): string {
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}-${month}-${year}`;
+}
+
+/** Daftar tanggal antara from dan to, hanya Senin–Jumat jika weekdaysOnly */
+function getDatesBetween(from: Date, to: Date, weekdaysOnly: boolean): Date[] {
+    const dates: Date[] = [];
+    const d = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+    const end = new Date(to.getFullYear(), to.getMonth(), to.getDate());
+    while (d <= end) {
+        if (!weekdaysOnly) {
+            dates.push(new Date(d));
+        } else {
+            const day = d.getDay(); // 0 Minggu, 1 Senin, ..., 6 Sabtu
+            if (day >= 1 && day <= 5) dates.push(new Date(d));
+        }
+        d.setDate(d.getDate() + 1);
+    }
+    return dates;
+}
+
+// Bulk by date: fetch satu endpoint per tanggal dengan delay, hanya hari kerja (Senin–Jumat)
+app.post('/api/test-bulk-by-date', async (req, res) => {
+    const startTime = Date.now();
+
+    try {
+        const {
+            config,
+            module,
+            submodule,
+            endpoint,
+            dateFrom,
+            dateTo,
+            delayMs = 5000,
+            weekdaysOnly = true,
+            extraParams = {},
+            paramDateKey = 'tglDaftar'
+        } = req.body;
+
+        if (!config || !module || !endpoint || !dateFrom || !dateTo) {
+            return res.status(400).json({
+                success: false,
+                error: 'Parameter wajib: config, module, endpoint, dateFrom, dateTo'
+            });
+        }
+
+        const from = new Date(dateFrom);
+        const to = new Date(dateTo);
+        if (isNaN(from.getTime()) || isNaN(to.getTime())) {
+            return res.status(400).json({
+                success: false,
+                error: 'dateFrom dan dateTo harus format tanggal valid (YYYY-MM-DD)'
+            });
+        }
+        if (from > to) {
+            return res.status(400).json({
+                success: false,
+                error: 'dateFrom tidak boleh lebih besar dari dateTo'
+            });
+        }
+
+        const dates = getDatesBetween(from, to, !!weekdaysOnly);
+        if (dates.length === 0) {
+            return res.json({
+                success: true,
+                results: [],
+                totalDuration: 0,
+                message: 'Tidak ada tanggal dalam rentang (hanya hari kerja jika weekdaysOnly aktif)'
+            });
+        }
+
+        const jkn = new JKN({
+            mode: config.mode || 'development',
+            ppkCode: config.ppkCode,
+            consId: config.consId,
+            consSecret: config.consSecret,
+            vclaimUserKey: config.vclaimUserKey,
+            antreanUserKey: config.antreanUserKey,
+            pcareUserKey: config.pcareUserKey,
+            pcareUser: config.pcareUser,
+            pcarePassword: config.pcarePassword,
+            pcareKodeAplikasi: config.pcareKodeAplikasi,
+            aplicaresUserKey: config.aplicaresUserKey || config.vclaimUserKey,
+            apotekUserKey: config.apotekUserKey || config.vclaimUserKey,
+            icareUserKey: config.icareUserKey || config.vclaimUserKey,
+            rekamMedisUserKey: config.rekamMedisUserKey || config.vclaimUserKey
+        });
+
+        let apiInstance: any;
+        if (submodule) {
+            apiInstance = (jkn as any)[module]?.[submodule];
+        } else {
+            apiInstance = (jkn as any)[module];
+        }
+
+        if (!apiInstance) {
+            return res.status(400).json({
+                success: false,
+                error: `Module atau submodule tidak ditemukan: ${module}${submodule ? '.' + submodule : ''}`
+            });
+        }
+
+        const method = apiInstance[endpoint];
+        if (!method || typeof method !== 'function') {
+            return res.status(400).json({
+                success: false,
+                error: `Endpoint tidak ditemukan: ${endpoint}`
+            });
+        }
+
+        const results: { date: string; dateFormatted: string; success: boolean; result?: any; error?: string; duration: number; count?: number }[] = [];
+
+        for (let i = 0; i < dates.length; i++) {
+            const d = dates[i];
+            const dateStr = d.toISOString().slice(0, 10);
+            const dateFormatted = formatDateDDMMYYYY(d);
+            const params = { ...extraParams, [paramDateKey]: dateFormatted };
+            const reqStart = Date.now();
+            try {
+                const result = await method.call(apiInstance, params);
+                const duration = Date.now() - reqStart;
+                const count = result?.response?.count ?? result?.response?.list?.length ?? undefined;
+                results.push({
+                    date: dateStr,
+                    dateFormatted,
+                    success: true,
+                    result,
+                    duration,
+                    count
+                });
+            } catch (error) {
+                const duration = Date.now() - reqStart;
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                results.push({
+                    date: dateStr,
+                    dateFormatted,
+                    success: false,
+                    error: errorMessage,
+                    duration
+                });
+            }
+            // Delay sebelum request berikutnya (kecuali tanggal terakhir)
+            if (i < dates.length - 1 && delayMs > 0) {
+                await new Promise(r => setTimeout(r, delayMs));
+            }
+        }
+
+        const totalDuration = Date.now() - startTime;
+        res.json({
+            success: true,
+            results,
+            totalDuration,
+            datesCount: dates.length
+        });
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        res.status(500).json({
+            success: false,
+            error: errorMessage
         });
     }
 });

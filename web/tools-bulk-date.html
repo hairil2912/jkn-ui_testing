@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tools – Fetch per Tanggal | JKN Testing</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .tool-page { max-width: 900px; margin: 0 auto; }
+        .tool-card { background: var(--card-bg); border-radius: 8px; box-shadow: var(--shadow); padding: 24px; margin-bottom: 24px; }
+        .tool-card h2 { margin: 0 0 16px 0; color: var(--primary-color); }
+        .date-result-item { border: 1px solid var(--border-color); border-radius: 8px; margin-bottom: 12px; overflow: hidden; }
+        .date-result-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 12px 16px; background: var(--bg-color); cursor: pointer; }
+        .date-result-head:hover { background: #e2e8f0; }
+        .date-result-head .date-badge { font-weight: 600; }
+        .date-result-head .meta { font-size: 0.875rem; color: var(--text-muted); }
+        .date-result-body { padding: 16px; border-top: 1px solid var(--border-color); background: #fff; display: none; }
+        .date-result-body.open { display: block; }
+        .date-result-body pre { margin: 0; font-size: 0.8rem; max-height: 400px; overflow: auto; white-space: pre-wrap; word-break: break-word; }
+        .date-result-body .data-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+        .date-result-body .data-table th, .date-result-body .data-table td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border-color); }
+        .toggle-detail { font-size: 0.8rem; color: var(--primary-color); }
+    </style>
+</head>
+<body>
+    <div class="container tool-page">
+        <header>
+            <h1>🛠️ Tools – Fetch per Tanggal</h1>
+            <p style="color: var(--text-muted); margin-top: 8px;">
+                Jalankan <strong>PCare – Get Pendaftaran Provider</strong> untuk setiap tanggal (Senin–Jumat) dengan jeda antar request.
+            </p>
+            <p style="color: var(--text-muted); font-size: 0.875rem; margin-top: 4px;">
+                Rentang tanggal <strong>tidak dibatasi</strong> dari sisi aplikasi ini (sama seperti tes manual). Jika ada info limit dari dokumentasi BPJS, API sering tetap menerima rentang lebih.
+            </p>
+            <div style="margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
+                <a href="index.html" class="btn btn-secondary" style="text-decoration: none;">← Kembali ke Testing</a>
+                <a href="config.html" class="btn btn-secondary" style="text-decoration: none;">⚙️ Konfigurasi RS</a>
+                <button type="button" onclick="logout()" class="btn btn-secondary">🚪 Logout</button>
+            </div>
+        </header>
+
+        <div class="tool-card">
+            <h2>Parameter</h2>
+            <div class="form-group">
+                <label for="toolConfigSelect">Konfigurasi RS</label>
+                <select id="toolConfigSelect" class="form-control" required>
+                    <option value="">-- Pilih RS --</option>
+                </select>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div class="form-group">
+                    <label for="toolDateFrom">Tanggal dari</label>
+                    <input type="date" id="toolDateFrom" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label for="toolDateTo">Tanggal sampai</label>
+                    <input type="date" id="toolDateTo" class="form-control">
+                </div>
+            </div>
+            <div style="display: grid; grid-template-columns: auto 1fr auto 1fr; gap: 16px; align-items: end;">
+                <div class="form-group">
+                    <label for="toolDelaySec">Delay (detik)</label>
+                    <input type="number" id="toolDelaySec" class="form-control" value="5" min="1" max="120">
+                </div>
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 8px; margin-top: 24px;">
+                        <input type="checkbox" id="toolWeekdaysOnly" checked>
+                        Hanya hari kerja (Senin–Jumat)
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label for="toolStart">Start</label>
+                    <input type="number" id="toolStart" class="form-control" value="0" min="0">
+                </div>
+                <div class="form-group">
+                    <label for="toolLimit">Limit</label>
+                    <input type="number" id="toolLimit" class="form-control" value="10" min="1" max="500">
+                </div>
+            </div>
+            <div class="form-actions" style="margin-top: 16px;">
+                <button type="button" class="btn btn-primary" id="toolRunBtn" onclick="runBulkByDate()">▶️ Jalankan</button>
+                <button type="button" class="btn btn-secondary" onclick="clearBulkResult()">🗑️ Bersihkan Hasil</button>
+            </div>
+        </div>
+
+        <div class="tool-card" id="toolResultCard" style="display: none;">
+            <h2>Hasil per tanggal</h2>
+            <p id="toolResultSummary" style="color: var(--text-muted); margin-bottom: 16px;"></p>
+            <div id="toolResultList"></div>
+        </div>
+    </div>
+
+    <script>
+        async function checkAuth() {
+            try {
+                const res = await fetch('/api/auth/status', { credentials: 'include' });
+                const data = await res.json();
+                if (!data.success || !data.authenticated) {
+                    window.location.href = '/login.html';
+                    return false;
+                }
+                return true;
+            } catch (e) {
+                window.location.href = '/login.html';
+                return false;
+            }
+        }
+
+        async function logout() {
+            try {
+                await fetch('/api/logout', { method: 'POST', credentials: 'include' });
+            } catch (e) {}
+            window.location.href = '/login.html';
+        }
+
+        async function loadConfigs() {
+            const res = await fetch('/api/configs', { credentials: 'include' });
+            const data = await res.json();
+            const select = document.getElementById('toolConfigSelect');
+            select.innerHTML = '<option value="">-- Pilih RS --</option>';
+            if (data.success && data.data && data.data.length) {
+                data.data.forEach(c => {
+                    const opt = document.createElement('option');
+                    opt.value = c.id;
+                    opt.textContent = (c.namaRS || 'Unnamed') + ' (' + (c.mode === 'production' ? 'Production' : 'Development') + ')';
+                    select.appendChild(opt);
+                });
+            }
+        }
+
+        function clearBulkResult() {
+            document.getElementById('toolResultCard').style.display = 'none';
+            document.getElementById('toolResultList').innerHTML = '';
+            document.getElementById('toolResultSummary').textContent = '';
+        }
+
+        function toggleDateDetail(id) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.classList.toggle('open');
+        }
+
+        function formatDDMMYYYY(d) {
+            const day = String(d.getDate()).padStart(2, '0');
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            return day + '-' + month + '-' + d.getFullYear();
+        }
+
+        function getDatesBetween(dateFrom, dateTo, weekdaysOnly) {
+            const from = new Date(dateFrom);
+            const to = new Date(dateTo);
+            const out = [];
+            const d = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+            const end = new Date(to.getFullYear(), to.getMonth(), to.getDate());
+            while (d <= end) {
+                if (!weekdaysOnly) {
+                    out.push({ dateStr: d.toISOString().slice(0, 10), dateFormatted: formatDDMMYYYY(d) });
+                } else {
+                    const day = d.getDay();
+                    if (day >= 1 && day <= 5) out.push({ dateStr: d.toISOString().slice(0, 10), dateFormatted: formatDDMMYYYY(d) });
+                }
+                d.setDate(d.getDate() + 1);
+            }
+            return out;
+        }
+
+        function renderRowPlaceholder(i, dateFormatted) {
+            const detailId = 'detail-' + i;
+            return '<div class="date-result-item" id="row-' + i + '">' +
+                '<div class="date-result-head" onclick="toggleDateDetail(\'' + detailId + '\')">' +
+                '<span class="date-badge">' + dateFormatted + '</span>' +
+                '<span class="meta">⏳ Mengambil...</span>' +
+                '</div>' +
+                '<div id="' + detailId + '" class="date-result-body"></div></div>';
+        }
+
+        function updateRow(i, dateFormatted, success, data, error, duration) {
+            const resData = data && (data.response !== undefined ? data.response : data);
+            const list = resData && resData.list;
+            const count = resData && (resData.count !== undefined ? resData.count : (list && list.length));
+            const detailId = 'detail-' + i;
+            let bodyHtml = '';
+            if (success && resData) {
+                if (list && list.length) {
+                    bodyHtml += '<table class="data-table"><thead><tr><th>No Urut</th><th>No Kartu</th><th>Nama</th><th>Poli</th><th>Keluhan</th></tr></thead><tbody>';
+                    list.forEach(function (row) {
+                        var peserta = row.peserta || {};
+                        var poli = row.poli || {};
+                        bodyHtml += '<tr><td>' + (row.noUrut || '–') + '</td><td>' + (peserta.noKartu || '–') + '</td><td>' + (peserta.nama || '–') + '</td><td>' + (poli.nmPoli || poli.kdPoli || '–') + '</td><td>' + (row.keluhan || '–') + '</td></tr>';
+                    });
+                    bodyHtml += '</tbody></table>';
+                } else {
+                    bodyHtml += '<pre>' + JSON.stringify(resData, null, 2) + '</pre>';
+                }
+            } else {
+                bodyHtml += '<pre>' + (error || JSON.stringify(data, null, 2)) + '</pre>';
+            }
+            const meta = success ? '<span style="color:var(--success-color);">✓ OK</span>' : '<span style="color:var(--danger-color);">✗ Error</span>';
+            const rowEl = document.getElementById('row-' + i);
+            if (rowEl) {
+                rowEl.innerHTML = '<div class="date-result-head" onclick="toggleDateDetail(\'' + detailId + '\')">' +
+                    '<span class="date-badge">' + dateFormatted + '</span>' +
+                    '<span class="meta">' + meta + ' &nbsp;|&nbsp; Jumlah: ' + (count !== undefined ? count : '–') + ' &nbsp;|&nbsp; ' + (duration || 0) + ' ms</span>' +
+                    '<span class="toggle-detail">' + (success ? '▼ Lihat data' : '▼ Lihat error') + '</span></div>' +
+                    '<div id="' + detailId + '" class="date-result-body">' + bodyHtml + '</div>';
+            }
+        }
+
+        async function runBulkByDate() {
+            const configId = document.getElementById('toolConfigSelect').value;
+            if (!configId) {
+                alert('Pilih konfigurasi RS dulu.');
+                return;
+            }
+            const dateFrom = document.getElementById('toolDateFrom').value;
+            const dateTo = document.getElementById('toolDateTo').value;
+            if (!dateFrom || !dateTo) {
+                alert('Isi Tanggal dari dan Tanggal sampai.');
+                return;
+            }
+            if (new Date(dateFrom) > new Date(dateTo)) {
+                alert('Tanggal dari tidak boleh lebih besar dari Tanggal sampai.');
+                return;
+            }
+
+            const delaySec = parseInt(document.getElementById('toolDelaySec').value, 10) || 5;
+            const weekdaysOnly = document.getElementById('toolWeekdaysOnly').checked;
+            const start = parseInt(document.getElementById('toolStart').value, 10) || 0;
+            const limit = parseInt(document.getElementById('toolLimit').value, 10) || 10;
+
+            const resConfig = await fetch('/api/configs/' + configId, { credentials: 'include' });
+            const dataConfig = await resConfig.json();
+            if (!dataConfig.success || !dataConfig.data) {
+                alert('Gagal mengambil konfigurasi.');
+                return;
+            }
+            const raw = dataConfig.data;
+            const config = {
+                mode: raw.mode || 'development',
+                ppkCode: raw.ppkCode,
+                consId: raw.consId,
+                consSecret: raw.consSecret,
+                vclaimUserKey: raw.vclaimUserKey,
+                antreanUserKey: raw.antreanUserKey,
+                pcareUserKey: raw.pcareUserKey,
+                pcareUser: raw.pcareUser,
+                pcarePassword: raw.pcarePassword,
+                pcareKodeAplikasi: raw.pcareKodeAplikasi,
+                aplicaresUserKey: raw.aplicaresUserKey || raw.vclaimUserKey,
+                apotekUserKey: raw.apotekUserKey || raw.vclaimUserKey,
+                icareUserKey: raw.icareUserKey || raw.vclaimUserKey,
+                rekamMedisUserKey: raw.rekamMedisUserKey || raw.vclaimUserKey
+            };
+
+            const dates = getDatesBetween(dateFrom, dateTo, weekdaysOnly);
+            if (dates.length === 0) {
+                alert('Tidak ada tanggal dalam rentang (coba centang "Hanya hari kerja" atau perbesar rentang).');
+                return;
+            }
+
+            const runBtn = document.getElementById('toolRunBtn');
+            runBtn.disabled = true;
+            runBtn.textContent = '⏳ Menjalankan...';
+            document.getElementById('toolResultCard').style.display = 'block';
+            document.getElementById('toolResultSummary').textContent = 'Total: ' + dates.length + ' tanggal. Hasil tampil per tanggal...';
+            document.getElementById('toolResultList').innerHTML = dates.map(function (d, i) { return renderRowPlaceholder(i, d.dateFormatted); }).join('');
+
+            var successCount = 0;
+            var withDataCount = 0;
+            var totalStart = Date.now();
+
+            for (var i = 0; i < dates.length; i++) {
+                var d = dates[i];
+                var reqStart = Date.now();
+                try {
+                    var res = await fetch('/api/test', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify({
+                            config: config,
+                            module: 'pcare',
+                            submodule: 'pendaftaran',
+                            endpoint: 'tglDaftar',
+                            params: { tglDaftar: d.dateFormatted, start: start, limit: limit }
+                        })
+                    });
+                    var result = await res.json();
+                    var duration = Date.now() - reqStart;
+                    var ok = result.success && result.data;
+                    if (ok) successCount++;
+                    var resp = result.data;
+                    var resData = resp && (resp.response !== undefined ? resp.response : resp);
+                    if (resData && ((resData.count !== undefined && resData.count > 0) || (resData.list && resData.list.length > 0))) withDataCount++;
+                    updateRow(i, d.dateFormatted, ok, resp, result.error || (resp && (resp.metadata || resp.metaData) && (resp.metadata || resp.metaData).message), duration);
+                } catch (err) {
+                    updateRow(i, d.dateFormatted, false, null, err.message || 'Request gagal', Date.now() - reqStart);
+                }
+                if (i < dates.length - 1 && delaySec > 0) {
+                    await new Promise(function (r) { setTimeout(r, delaySec * 1000); });
+                }
+            }
+
+            var totalDuration = (Date.now() - totalStart) / 1000;
+            document.getElementById('toolResultSummary').textContent =
+                'Total: ' + dates.length + ' tanggal | Berhasil: ' + successCount + ' | Tanggal yang ada data: ' + withDataCount + ' | Total waktu: ' + totalDuration.toFixed(1) + ' detik';
+            runBtn.disabled = false;
+            runBtn.textContent = '▶️ Jalankan';
+        }
+
+        document.addEventListener('DOMContentLoaded', async function () {
+            if (!(await checkAuth())) return;
+            await loadConfigs();
+        });
+    </script>
+</body>
+</html>
